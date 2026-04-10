@@ -112,6 +112,20 @@ app.delete(
     }
 );
 
-userService.connect();
+let isConnected = false;
+const handler = serverless(app);
 
-module.exports = serverless(app);
+module.exports = async (req, res) => {
+    try {
+        if (!isConnected) {
+            await userService.connect();
+            isConnected = true;
+        }
+
+        return handler(req, res);
+    } catch (err) {
+        return res.status(500).json({
+            message: `Database connection failed: ${err}`
+        });
+    }
+};
