@@ -1,3 +1,4 @@
+const serverless = require("serverless-http");
 const express = require('express');
 const app = express();
 const cors = require("cors");
@@ -111,13 +112,6 @@ app.delete(
     }
 );
 
-userService.connect()
-    .then(() => {
-        app.listen(HTTP_PORT, () => {
-            console.log("API listening on: " + HTTP_PORT);
-        });
-    })
-    .catch((err) => {
-        console.log("unable to start the server: " + err);
-        process.exit();
-    });
+userService.connect();
+
+module.exports = serverless(app);
