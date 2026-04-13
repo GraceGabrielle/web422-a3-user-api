@@ -1,4 +1,3 @@
-const serverless = require("serverless-http");
 const express = require('express');
 const app = express();
 const cors = require("cors");
@@ -11,8 +10,6 @@ dotenv.config();
 
 const userService = require("./user-service.js");
 
-const HTTP_PORT = process.env.PORT || 8080;
-
 app.use(express.json());
 app.use(cors());
 app.use(passport.initialize());
@@ -20,112 +17,64 @@ app.use(passport.initialize());
 const ExtractJwt = passportJWT.ExtractJwt;
 const JwtStrategy = passportJWT.Strategy;
 
-const jwtOptions = {};
-jwtOptions.jwtFromRequest = ExtractJwt.fromAuthHeaderAsBearerToken();
-jwtOptions.secretOrKey = process.env.JWT_SECRET;
+const jwtOptions = {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+    secretOrKey: process.env.JWT_SECRET
+};
 
 const strategy = new JwtStrategy(jwtOptions, (jwt_payload, done) => {
-    try {
-        if (jwt_payload) {
-            return done(null, {
-                _id: jwt_payload._id,
-                userName: jwt_payload.userName
-            });
-        }
-        return done(null, false);
-    } catch (err) {
-        return done(err, false);
+    if (jwt_payload) {
+        return done(null, { _id: jwt_payload._id, userName: jwt_payload.userName });
     }
+    return done(null, false);
 });
 
 passport.use(strategy);
 
+// Connect to MongoDB ONCE at module load time
+userService.connect().catch(err => console.error("DB connection error:", err));
+
 app.post("/api/user/register", (req, res) => {
     userService.registerUser(req.body)
-        .then((msg) => {
-            res.json({ message: msg });
-        })
-        .catch((msg) => {
-            res.status(422).json({ message: msg });
-        });
+        .then((msg) => res.json({ message: msg }))
+        .catch((msg) => res.status(422).json({ message: msg }));
 });
 
 app.post("/api/user/login", (req, res) => {
     userService.checkUser(req.body)
         .then((user) => {
-            const payload = {
-                _id: user._id,
-                userName: user.userName
-            };
-
+            const payload = { _id: user._id, userName: user.userName };
             const token = jwt.sign(payload, process.env.JWT_SECRET);
-
-            res.json({
-                message: "login successful",
-                token: token
-            });
+            res.json({ message: "login successful", token: token });
         })
-        .catch((msg) => {
-            res.status(422).json({ message: msg });
-        });
+        .catch((msg) => res.status(422).json({ message: msg }));
 });
 
-app.get(
-    "/api/user/favourites",
+app.get("/api/user/favourites",
     passport.authenticate("jwt", { session: false }),
     (req, res) => {
         userService.getFavourites(req.user._id)
-            .then((data) => {
-                res.json(data);
-            })
-            .catch((msg) => {
-                res.status(422).json({ error: msg });
-            });
+            .then((data) => res.json(data))
+            .catch((msg) => res.status(422).json({ error: msg }));
     }
 );
 
-app.put(
-    "/api/user/favourites/:id",
+app.put("/api/user/favourites/:id",
     passport.authenticate("jwt", { session: false }),
     (req, res) => {
         userService.addFavourite(req.user._id, req.params.id)
-            .then((data) => {
-                res.json(data);
-            })
-            .catch((msg) => {
-                res.status(422).json({ error: msg });
-            });
+            .then((data) => res.json(data))
+            .catch((msg) => res.status(422).json({ error: msg }));
     }
 );
 
-app.delete(
-    "/api/user/favourites/:id",
+app.delete("/api/user/favourites/:id",
     passport.authenticate("jwt", { session: false }),
     (req, res) => {
         userService.removeFavourite(req.user._id, req.params.id)
-            .then((data) => {
-                res.json(data);
-            })
-            .catch((msg) => {
-                res.status(422).json({ error: msg });
-            });
+            .then((data) => res.json(data))
+            .catch((msg) => res.status(422).json({ error: msg }));
     }
 );
 
-let isConnected = false;
-const handler = serverless(app);
-
-module.exports = async (req, res) => {
-    try {
-        if (!isConnected) {
-            await userService.connect();
-            isConnected = true;
-        }
-
-        return handler(req, res);
-    } catch (err) {
-        return res.status(500).json({
-            message: `Database connection failed: ${err}`
-        });
-    }
-};
+module.exports = app;
