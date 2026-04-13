@@ -6,49 +6,30 @@ const mongoDBConnectionString = process.env.MONGO_URL;
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema({
-    userName: {
-        type: String,
-        unique: true,
-    },
+    userName: { type: String, unique: true },
     password: String,
     favourites: [String],
 });
 
 let User;
-let isConnected = false;
 
 module.exports.connect = async function () {
-    if (isConnected) {
-        return;
-    }
-
     await mongoose.connect(mongoDBConnectionString);
-
     User = mongoose.models.users || mongoose.model("users", userSchema);
-    isConnected = true;
 };
 
 module.exports.registerUser = function (userData) {
     return new Promise(function (resolve, reject) {
+        if (!User) return reject("Database not connected");
         if (userData.password != userData.password2) {
             reject("Passwords do not match");
         } else {
-            bcrypt
-                .hash(userData.password, 10)
+            bcrypt.hash(userData.password, 10)
                 .then((hash) => {
                     userData.password = hash;
-
                     const newUser = new User(userData);
-
-                    newUser
-                        .save()
-                        .then(() => {
-                            resolve(
-                                "User " +
-                                    userData.userName +
-                                    " successfully registered"
-                            );
-                        })
+                    newUser.save()
+                        .then(() => resolve("User " + userData.userName + " successfully registered"))
                         .catch((err) => {
                             if (err.code == 11000) {
                                 reject("User Name already taken");
@@ -64,6 +45,7 @@ module.exports.registerUser = function (userData) {
 
 module.exports.checkUser = function (userData) {
     return new Promise(function (resolve, reject) {
+        if (!User) return reject("Database not connected");
         User.findOne({ userName: userData.userName })
             .exec()
             .then((user) => {
@@ -71,7 +53,6 @@ module.exports.checkUser = function (userData) {
                     reject("Unable to find user " + userData.userName);
                     return;
                 }
-
                 bcrypt.compare(userData.password, user.password).then((result) => {
                     if (result === true) {
                         resolve(user);
@@ -80,79 +61,50 @@ module.exports.checkUser = function (userData) {
                     }
                 });
             })
-            .catch(() => {
-                reject("Unable to find user " + userData.userName);
-            });
+            .catch(() => reject("Unable to find user " + userData.userName));
     });
 };
 
 module.exports.getFavourites = function (id) {
     return new Promise(function (resolve, reject) {
-        User.findById(id)
-            .exec()
+        if (!User) return reject("Database not connected");
+        User.findById(id).exec()
             .then((user) => {
-                if (!user) {
-                    reject(`Unable to get favourites for user with id: ${id}`);
-                    return;
-                }
+                if (!user) return reject(`Unable to get favourites for user with id: ${id}`);
                 resolve(user.favourites);
             })
-            .catch(() => {
-                reject(`Unable to get favourites for user with id: ${id}`);
-            });
+            .catch(() => reject(`Unable to get favourites for user with id: ${id}`));
     });
 };
 
 module.exports.addFavourite = function (id, favId) {
     return new Promise(function (resolve, reject) {
-        User.findById(id)
-            .exec()
+        if (!User) return reject("Database not connected");
+        User.findById(id).exec()
             .then((user) => {
-                if (!user) {
-                    reject(`Unable to update favourites for user with id: ${id}`);
-                    return;
-                }
-
+                if (!user) return reject(`Unable to update favourites for user with id: ${id}`);
                 if (user.favourites.length < 50) {
-                    User.findByIdAndUpdate(
-                        id,
-                        { $addToSet: { favourites: favId } },
-                        { new: true }
-                    )
+                    User.findByIdAndUpdate(id, { $addToSet: { favourites: favId } }, { new: true })
                         .exec()
-                        .then((updatedUser) => {
-                            resolve(updatedUser.favourites);
-                        })
-                        .catch(() => {
-                            reject(`Unable to update favourites for user with id: ${id}`);
-                        });
+                        .then((updatedUser) => resolve(updatedUser.favourites))
+                        .catch(() => reject(`Unable to update favourites for user with id: ${id}`));
                 } else {
                     reject(`Unable to update favourites for user with id: ${id}`);
                 }
             })
-            .catch(() => {
-                reject(`Unable to update favourites for user with id: ${id}`);
-            });
+            .catch(() => reject(`Unable to update favourites for user with id: ${id}`));
     });
 };
 
 module.exports.removeFavourite = function (id, favId) {
     return new Promise(function (resolve, reject) {
-        User.findByIdAndUpdate(
-            id,
-            { $pull: { favourites: favId } },
-            { new: true }
-        )
+        if (!User) return reject("Database not connected");
+        User.findByIdAndUpdate(id, { $pull: { favourites: favId } }, { new: true })
             .exec()
             .then((user) => {
-                if (!user) {
-                    reject(`Unable to update favourites for user with id: ${id}`);
-                    return;
-                }
+                if (!user) return reject(`Unable to update favourites for user with id: ${id}`);
                 resolve(user.favourites);
             })
-            .catch(() => {
-                reject(`Unable to update favourites for user with id: ${id}`);
-            });
+            .catch(() => reject(`Unable to update favourites for user with id: ${id}`));
     });
 };
