@@ -34,78 +34,51 @@ const strategy = new JwtStrategy(jwtOptions, (jwt_payload, done) => {
 
 passport.use(strategy);
 
-// Connect to MongoDB once at startup
-userService.connect().catch(err => console.error("DB connection error:", err));
-
-app.post("/api/user/register", (req, res) => {
+app.post("/api/user/register", async (req, res) => {
+    await userService.connect();
     userService.registerUser(req.body)
-        .then((msg) => {
-            res.json({ message: msg });
-        })
-        .catch((msg) => {
-            res.status(422).json({ message: msg.toString() });
-        });
+        .then((msg) => res.json({ message: msg }))
+        .catch((msg) => res.status(422).json({ message: msg.toString() }));
 });
 
-app.post("/api/user/login", (req, res) => {
+app.post("/api/user/login", async (req, res) => {
+    await userService.connect();
     userService.checkUser(req.body)
         .then((user) => {
-            const payload = {
-                _id: user._id,
-                userName: user.userName
-            };
-
+            const payload = { _id: user._id, userName: user.userName };
             const token = jwt.sign(payload, process.env.JWT_SECRET);
-
-            res.json({
-                message: "login successful",
-                token: token
-            });
+            res.json({ message: "login successful", token: token });
         })
-        .catch((msg) => {
-            res.status(422).json({ message: msg.toString() });
-        });
+        .catch((msg) => res.status(422).json({ message: msg.toString() }));
 });
 
-app.get(
-    "/api/user/favourites",
+app.get("/api/user/favourites",
     passport.authenticate("jwt", { session: false }),
-    (req, res) => {
+    async (req, res) => {
+        await userService.connect();
         userService.getFavourites(req.user._id)
-            .then((data) => {
-                res.json(data);
-            })
-            .catch((msg) => {
-                res.status(422).json({ error: msg.toString() });
-            });
+            .then((data) => res.json(data))
+            .catch((msg) => res.status(422).json({ error: msg.toString() }));
     }
 );
 
-app.put(
-    "/api/user/favourites/:id",
+app.put("/api/user/favourites/:id",
     passport.authenticate("jwt", { session: false }),
-    (req, res) => {
+    async (req, res) => {
+        await userService.connect();
         userService.addFavourite(req.user._id, req.params.id)
-            .then((data) => {
-                res.json(data);
-            })
-            .catch((msg) => {
-                res.status(422).json({ error: msg.toString() });
-            });
+            .then((data) => res.json(data))
+            .catch((msg) => res.status(422).json({ error: msg.toString() }));
     }
 );
 
-app.delete(
-    "/api/user/favourites/:id",
+app.delete("/api/user/favourites/:id",
     passport.authenticate("jwt", { session: false }),
-    (req, res) => {
+    async (req, res) => {
+        await userService.connect();
         userService.removeFavourite(req.user._id, req.params.id)
-            .then((data) => {
-                res.json(data);
-            })
-            .catch((msg) => {
-                res.status(422).json({ error: msg.toString() });
-            });
+            .then((data) => res.json(data))
+            .catch((msg) => res.status(422).json({ error: msg.toString() }));
     }
 );
 
